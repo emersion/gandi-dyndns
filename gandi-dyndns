@@ -115,6 +115,15 @@ def get_public_ipv6():
     except: pass
     return None
 
+def get_public_ipv4_livebox():
+    try:
+      data = urllib2.urlopen("http://livebox/").read()
+      matches = re.search('Adresse IP WAN :</td>[\s]+<td class="value">(.*?)</td>', data)
+      if matches:
+          return matches.group(1)
+    except: pass
+    return None
+
 #
 # Main
 #
@@ -131,6 +140,8 @@ if __name__ == '__main__':
   optp.add_option('-4', '--ipv4',   help='Enable IPv4',
                   action='store_true')
   optp.add_option('-6', '--ipv6',   help='Enable IPv6',
+                  action='store_true')
+  optp.add_option('-L', '--livebox',   help='Enable IPv4 using Livebox',
                   action='store_true')
   optp.add_option('--test', help='Run test, do not update anything',
                   action='store_true')
@@ -173,7 +184,10 @@ if __name__ == '__main__':
       if opts.addrv4:
         addr = opts.addrv4
       else:
-        addr = get_public_ipv4()
+        if opts.livebox:
+          addr = get_public_ipv4_livebox()
+        else:
+          addr = get_public_ipv4()
     else:
       addr = get_public_ipv6()
     if not addr:
