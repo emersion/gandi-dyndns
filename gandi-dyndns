@@ -115,7 +115,7 @@ def get_public_ipv6():
     except: pass
     return None
 
-def get_public_ipv4_livebox():
+def get_public_ipv4_orange():
     try:
       data = urllib2.urlopen("http://livebox/").read()
       matches = re.search('Adresse IP WAN :</td>[\s]+<td class="value">(.*?)</td>', data)
@@ -141,7 +141,7 @@ if __name__ == '__main__':
                   action='store_true')
   optp.add_option('-6', '--ipv6',   help='Enable IPv6',
                   action='store_true')
-  optp.add_option('-L', '--livebox',   help='Enable IPv4 using Livebox',
+  optp.add_option('-p', '--provider',   help='Specify your Internet provider name to retrieve faster your IP adress (supported: orange)',
                   action='store_true')
   optp.add_option('--test', help='Run test, do not update anything',
                   action='store_true')
@@ -184,8 +184,8 @@ if __name__ == '__main__':
       if opts.addrv4:
         addr = opts.addrv4
       else:
-        if opts.livebox:
-          addr = get_public_ipv4_livebox()
+        if opts.provider == 'orange':
+          addr = get_public_ipv4_orange()
         else:
           addr = get_public_ipv4()
     else:
