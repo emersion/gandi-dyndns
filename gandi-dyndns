@@ -142,7 +142,7 @@ if __name__ == '__main__':
   optp.add_option('-6', '--ipv6', help='Enable IPv6',
                   action='store_true')
   optp.add_option('-p', '--provider', help='Specify your Internet provider name to retrieve faster your IP adress (supported: orange)',
-                  action='store_true', default=None)
+                  action='store_true', type=str, default='')
   optp.add_option('--test', help='Run test, do not update anything',
                   action='store_true')
   optp.add_option('--addrv4', help='Alternatively, specify your IPv4', default=None)
