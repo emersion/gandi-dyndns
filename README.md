@@ -1,17 +1,19 @@
+# gandi-dyndns
+
 > **Notice**
 > 
 > The development of this tool or myself are in no way involved with Gandi.net.
 
-# Requirements
+## Requirements
 
 - Python (>= 2.7)
 - Python xmlrpclib 
 
-# Gandi details
+## Gandi details
 
 API Key (Apply here: https://www.gandi.net/admin/api_key)
 
-# Usage
+## Usage
 
 gandi-dyndns --apikey=APIKEY --domain=DOMAIN --record=RECORD
 
@@ -21,7 +23,7 @@ I'll be contacting them to fix this.
 
 All communication is done over https.
 
-# crontab
+## crontab
 
 Update DNS every 5 min:
 ```
