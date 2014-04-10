@@ -21,6 +21,8 @@ Currently very lazy but working mode.
 Note that there is a gandi bug, as where the program updates the zone and activates it, gandi does not show this through their webinterface.
 I'll be contacting them to fix this.
 
+See http://gerard.geekandfree.org/blog/2012/03/01/debarrassez-vous-de-dyndns-en-utilisant-lapi-de-gandi/
+
 All communication is done over https.
 
 ## crontab
