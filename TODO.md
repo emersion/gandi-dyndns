@@ -1,0 +1,3 @@
+- add local history for IP to check weither we need to use gandi rpc 
+- add checks and warnings / errors
+- add support for other internet providers
