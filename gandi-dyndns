@@ -10,11 +10,11 @@
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
 #
@@ -32,10 +32,10 @@ class GandiAPI:
 
   # Setup
   def __init__ ( self, key, domain ):
-    self._rpc     = xmlrpclib.ServerProxy('https://rpc.gandi.net/xmlrpc/')
-    self._key     = key
-    self._domain  = domain
-    self._zoneid  = None
+    self._rpc = xmlrpclib.ServerProxy('https://rpc.gandi.net/xmlrpc/')
+    self._key = key
+    self._domain = domain
+    self._zoneid = None
     self._zonever = None
 
     # Check key/domain
@@ -43,7 +43,7 @@ class GandiAPI:
     try:
       self.version()
       vok = True
-      di  = self.domain_info()
+      di = self.domain_info()
       if 'zone_id' in di:
         self._zoneid = di['zone_id']
       else:
@@ -132,16 +132,16 @@ if __name__ == '__main__':
 
   # Process command line
   optp = OptionParser()
-  optp.add_option('-a', '--api',    help='Specify API key')
+  optp.add_option('-a', '--api', help='Specify API key')
   optp.add_option('-d', '--domain', help='Specify domain')
   optp.add_option('-r', '--record', help='Specify record data')
-  optp.add_option('-t', '--ttl',    help='Specify record TTL. Defaults to 300s (5min)',
+  optp.add_option('-t', '--ttl', help='Specify record TTL. Defaults to 300s (5min)',
                   type='int', default=300)
-  optp.add_option('-4', '--ipv4',   help='Enable IPv4',
+  optp.add_option('-4', '--ipv4', help='Enable IPv4',
                   action='store_true')
-  optp.add_option('-6', '--ipv6',   help='Enable IPv6',
+  optp.add_option('-6', '--ipv6', help='Enable IPv6',
                   action='store_true')
-  optp.add_option('-p', '--provider',   help='Specify your Internet provider name to retrieve faster your IP adress (supported: orange)',
+  optp.add_option('-p', '--provider', help='Specify your Internet provider name to retrieve faster your IP adress (supported: orange)',
                   action='store_true')
   optp.add_option('--test', help='Run test, do not update anything',
                   action='store_true')
@@ -158,7 +158,7 @@ if __name__ == '__main__':
 
   # Record types
   rtypes = {}
-  if opts.ipv4: rtypes['A']    = None
+  if opts.ipv4: rtypes['A'] = None
   if opts.ipv6: rtypes['AAAA'] = None
   if not rtypes:
     print 'WARN : no record type specified, will default to ipv4'
@@ -171,4 +171,67 @@ if __name__ == '__main__':
   # Process records
   update = {}
   for rt in rtypes:
-    rs = api.zone_record_list(name=opts.record
+    rs = api.zone_record_list(name=opts.record, type=rt)
+
+    # Invalid
+    if not rs:
+      print 'WARN : %s record %s does not exist, will skip' % (rt, opts.record)
+      continue
+
+    # Check address
+    addr = None
+    if rt == 'A':
+      if opts.addrv4:
+        addr = opts.addrv4
+      else:
+        if opts.provider == 'orange':
+          addr = get_public_ipv4_orange()
+        else:
+          addr = get_public_ipv4()
+    else:
+      addr = get_public_ipv6()
+    if not addr:
+      print 'WARN : %s could not find public IP address, will skip' % rt
+      continue
+
+    # Check against record
+    if rs[0]['value'] == addr:
+      print 'INFO : %s record already correct, will skip' % rt
+      continue
+
+    # Update
+    print 'INFO : %s record will be updated from %s to %s' %\
+          (rt, rs[0]['value'], addr)
+    update[rt] = addr
+
+  # Done
+  if not update:
+    print 'INFO : nothing to update'
+    sys.exit(0)
+
+  # New zone
+  if opts.test:
+    zver = 12345
+  else:
+    zver = api.zone_version_new()
+  print 'INFO : created a new zone file version %d' % zver
+
+  # Update
+  for rt in update:
+    addr = update[rt]
+    print 'INFO : updating zone %s record %s to %s' % (rt, opts.record, addr)
+    if not opts.test:
+      api.zone_record_update(zver, opts.record, rt, addr, opts.ttl)
+
+  # Active new zone file
+  if not opts.test and zver:
+    api.zone_version_set(zver)
+
+  # Done
+  print 'INFO : records updated'
+
+# ###########################################################################
+# Editor
+#
+# vim:sts=2:ts=2:sw=2:et
+# ###########################################################################
