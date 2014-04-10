@@ -23,7 +23,7 @@ All communication is done over https.
 
 # crontab
 
-Update 
+Update DNS every 5 min:
 ```
 */5 * * * * gandi-dyndns --apikey=APIKEY --domain=DOMAIN --record=RECORD
 ```
