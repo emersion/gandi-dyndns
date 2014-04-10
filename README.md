@@ -29,5 +29,5 @@ All communication is done over https.
 
 Update DNS every 5 min:
 ```
-*/5 * * * * gandi-dyndns --apikey=APIKEY --domain=DOMAIN --record=RECORD
+*/5 * * * * cronjob.sh
 ```
