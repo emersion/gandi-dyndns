@@ -133,10 +133,19 @@ class GandiAPI:
 def get_public_ipv4():
     try:
         return urllib2.urlopen('http://ipinfo.io/ip').read()
-    except: pass
+    except:
+        print 'WARN: failed to retrieve IPv4 from http://ipinfo.io/ip'
     try:
         return urllib2.urlopen('http://api.externalip.net/ip/').read()
-    except: pass
+    except:
+        print 'WARN: failed to retrieve IPv4 from http://api.externalip.net/ip/'
+    try:
+        data = urllib2.urlopen('http://checkip.dyndns.com/').read()
+        matches = re.search('<body>Current IP Address: (.*?)</body>', data)
+        if matches:
+            return matches.group(1)
+    except:
+        print 'WARN: failed to retrieve IPv4 from http://checkip.dyndns.com/'
     return None
 
 def get_public_ipv6():
@@ -145,17 +154,22 @@ def get_public_ipv6():
         matches = re.search('<p class="my_address">(.*?)</p>', data)
         if matches:
             return matches.group(1)
-    except: pass
+    except:
+        print 'WARN: failed to retrieve IPv4 from http://icanhazipv6.com'
     return None
 
 def get_public_ipv4_orange():
     try:
         data = urllib2.urlopen("http://livebox/").read()
+        
+        # Livebox v2 Sagem
         matches = re.search('Adresse IP WAN :</td>[\s]+<td class="value">(.*?)</td>', data)
         if matches:
             return matches.group(1)
     except: pass
-    return None
+
+    print 'WARN: failed to retrieve IPv4 from http://livebox/'
+    return get_public_ipv4()
 
 #
 # Main
