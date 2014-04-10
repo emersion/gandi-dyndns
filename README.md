@@ -27,6 +27,8 @@ See http://gerard.geekandfree.org/blog/2012/03/01/debarrassez-vous-de-dyndns-en-
 
 All communication is done over https.
 
+If you have a Livebox, you can specify `--provider orange` to retrieve your public IP from your box (faster, better than online services).
+
 ## crontab
 
 Update DNS every 5 min:
