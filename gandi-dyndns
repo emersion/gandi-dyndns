@@ -135,7 +135,7 @@ if __name__ == '__main__':
   optp.add_option('-a', '--api',    help='Specify API key')
   optp.add_option('-d', '--domain', help='Specify domain')
   optp.add_option('-r', '--record', help='Specify record data')
-  optp.add_option('-t', '--ttl',    help='Specify record TTL [default=300s]',
+  optp.add_option('-t', '--ttl',    help='Specify record TTL. Defaults to 300s (5min)',
                   type='int', default=300)
   optp.add_option('-4', '--ipv4',   help='Enable IPv4',
                   action='store_true')
@@ -171,67 +171,4 @@ if __name__ == '__main__':
   # Process records
   update = {}
   for rt in rtypes:
-    rs = api.zone_record_list(name=opts.record, type=rt)
-
-    # Invalid
-    if not rs:
-      print 'WARN : %s record %s does not exist, will skip' % (rt, opts.record)
-      continue
-
-    # Check address
-    addr = None
-    if rt == 'A':
-      if opts.addrv4:
-        addr = opts.addrv4
-      else:
-        if opts.provider == 'orange':
-          addr = get_public_ipv4_orange()
-        else:
-          addr = get_public_ipv4()
-    else:
-      addr = get_public_ipv6()
-    if not addr:
-      print 'WARN : %s could not find public IP address, will skip' % rt
-      continue
-
-    # Check against record
-    if rs[0]['value'] == addr:
-      print 'INFO : %s record already correct, will skip' % rt
-      continue
-
-    # Update
-    print 'INFO : %s record will be updated from %s to %s' %\
-          (rt, rs[0]['value'], addr)
-    update[rt] = addr
-
-  # Done
-  if not update:
-    print 'INFO : nothing to update'
-    sys.exit(0)
-
-  # New zone
-  if opts.test:
-    zver = 12345
-  else:
-    zver = api.zone_version_new()
-  print 'INFO : created a new zone file version %d' % zver
-
-  # Update
-  for rt in update:
-    addr = update[rt]
-    print 'INFO : updating zone %s record %s to %s' % (rt, opts.record, addr)
-    if not opts.test:
-      api.zone_record_update(zver, opts.record, rt, addr, opts.ttl)
-
-  # Active new zone file
-  if not opts.test and zver:
-    api.zone_version_set(zver)
-
-  # Done
-  print 'INFO : records updated'
-
-# ###########################################################################
-# Editor
-#
-# vim:sts=2:ts=2:sw=2:et
-# ###########################################################################
+    rs = api.zone_record_list(name=opts.record
