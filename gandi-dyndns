@@ -22,8 +22,39 @@
 #
 
 import os, sys, re
+import json
+import time
 import xmlrpclib, urllib2
 from optparse import OptionParser
+
+class Logger:
+    _logger = None
+
+    def __init__ ( self, quiet ):
+        self._quiet = quiet
+
+        Logger._logger = self
+
+    def info( self, msg ):
+        if not self._quiet:
+            print( 'INFO: '+msg )
+
+    def warn( self, msg ):
+        if not self._quiet:
+            print >> sys.stderr, ('WARN: '+msg)
+
+    def error( self, msg ):
+        print >> sys.stderr, ('ERROR: '+msg)
+        sys.exit(1)
+
+    @staticmethod
+    def get():
+        if Logger._logger is None:
+            logger = Logger()
+        else:
+            logger = Logger._logger
+
+        return logger
 
 #
 # Api wrapper
@@ -31,47 +62,63 @@ from optparse import OptionParser
 class GandiAPI:
 
     # Setup
-    def __init__ ( self, key, domain ):
+    def __init__ ( self, key, domain, cache ):
         self._rpc = xmlrpclib.ServerProxy('https://rpc.gandi.net/xmlrpc/')
         self._key = key
         self._domain = domain
         self._zoneid = None
         self._zonever = None
+        self._cache = cache
+        self._logger = Logger.get()
 
-        # Check key/domain
-        if not self.apikey_check():
-            print 'ERROR: apikey specified [%s] was invalid' % key
-            sys.exit(1)
+        logger = self._logger
 
-        #if not self.domain_check():
-        #    print 'ERROR: domain specified [%s] was invalid' % domain
-        #    sys.exit(1)
+        if cache.is_empty():
+            # Check key/domain
+            if not self.apikey_check():
+                logger.error('apikey specified ['+key+'] was invalid')
+
+            #if not self.domain_check():
+            #    print 'ERROR: domain specified [%s] was invalid' % domain
+            #    sys.exit(1)
 
         try:
             di = self.domain_info()
             if 'zone_id' in di:
                 self._zoneid = di['zone_id']
             else:
-                print 'ERROR: zone id for domain [%s] could not be found' % domain
-                sys.exit(1)
-        except Exception, e:
-            print 'ERROR: apikey/domain specified [%s] was invalid' % domain
-            sys.exit(1)
+                logger.error('zone id for domain ['+domain+'] could not be found')
+        except Exception as e:
+            logger.error('domain specified ['+domain+'] was invalid')
 
     # API version
     def version ( self ):
         return self._rpc.version.info(self._key)
 
     def apikey_check( self ):
+        logger = self._logger
+
         try:
             self.version()
             return True
         except xmlrpclib.Fault as err:
             return False
+        except xmlrpclib.ProtocolError as err:
+            logger.error('protocol error: '+err.errcode+' '+err.errmsg)
 
     # Domain info
     def domain_info ( self ):
-        return self._rpc.domain.info(self._key, self._domain)
+        cache = self._cache
+        logger = self._logger
+
+        if cache.has('domain.info'):
+            data = cache.get('domain.info')
+        else:
+            logger.info('retrieving domain.info')
+            data = self._rpc.domain.info(self._key, self._domain)
+            cache.set('domain.info', data)
+
+        return data
 
     def domain_check ( self ):
         try:
@@ -80,15 +127,45 @@ class GandiAPI:
         except xmlrpclib.Fault as err:
             return False
 
+    # Zone
     def zone_list( self ):
-        return self._rpc.domain.zone.list(self._key)
+        cache = self._cache
+        logger = self._logger
 
-    # Get zone record
+        if cache.has('domain.zone.list'):
+            data = cache.get('domain.zone.list')
+        else:
+            logger.info('retrieving domain.zone.list')
+            data = self._rpc.domain.zone.list(self._key)
+            cache.set('domain.zone.list', data)
+
+        return data
+
+    def zone_get_id ( self ):
+        return self.domain_info()['zone_id']
+
+    def zone_version_set ( self, zver ): # Set active version
+        if zver:
+            self._rpc.domain.zone.version.set(self._key, self._zoneid, zver)
+
+    # Zone records
     def zone_record_list ( self, name = None, type = None ):
         opts = {}
         if name: opts['name'] = name
         if type: opts['type'] = type
-        return self._rpc.domain.zone.record.list(self._key, self._zoneid, 0, opts)
+
+        cache = self._cache
+        logger = self._logger
+
+        cacheKey = 'domain.zone.record.list?name='+name+'&type='+type
+        if cache.has(cacheKey):
+            data = cache.get(cacheKey)
+        else:
+            logger.info('retrieving '+cacheKey)
+            data = self._rpc.domain.zone.record.list(self._key, self._zoneid, 0, opts)
+            cache.set(cacheKey, data)
+
+        return data
 
     def zone_record_check ( self, name, type, external_ip ):
         records = self.zone_record_list(name, type)
@@ -99,66 +176,60 @@ class GandiAPI:
 
         return True
 
-    # Get new zone version
-    def zone_version_new ( self ):
+    def zone_version_new ( self ): # Get new zone version
         return self._rpc.domain.zone.version.new(self._key, self._zoneid)
 
-    # Delete a zone record
-    def zone_record_delete ( self, zver, name, type ):
+    def zone_record_delete ( self, zver, name, type ): # Delete a zone record
         opts = { 'name' : name, 'type' : type }
         self._rpc.domain.zone.record.delete(self._key, self._zoneid, zver, opts)
 
-    # Insert a new record
-    def zone_record_insert ( self, zver, name, type, value, ttl ):
+    def zone_record_insert ( self, zver, name, type, value, ttl ): # Insert a new record
         opts = { 'name' : name, 'type' : type, 'value' : value, 'ttl' : ttl }
         self._rpc.domain.zone.record.add(self._key, self._zoneid, zver, opts)
-        
-    # Update a record
-    def zone_record_update ( self, zver, name, type, value, ttl ):
+
+    def zone_record_update ( self, zver, name, type, value, ttl ): # Update a record
         self.zone_record_delete(zver, name, type)
         self.zone_record_insert(zver, name, type, value, ttl)
-        
-    def zone_get_id ( self ):
-        return self.domain_info()['zone_id']
-
-    # Set active version
-    def zone_version_set ( self, zver ):
-        if zver:
-            self._rpc.domain.zone.version.set(self._key, self._zoneid, zver)
 
 #
 # Get public IP address
 #
 
 def get_public_ipv4():
+    logger = Logger.get()
+
     try:
         return urllib2.urlopen('http://ipinfo.io/ip').read()
     except:
-        print 'WARN: failed to retrieve IPv4 from http://ipinfo.io/ip'
+        logger.warn('failed to retrieve IPv4 from http://ipinfo.io/ip')
     try:
         return urllib2.urlopen('http://api.externalip.net/ip/').read()
     except:
-        print 'WARN: failed to retrieve IPv4 from http://api.externalip.net/ip/'
+        logger.warn('failed to retrieve IPv4 from http://api.externalip.net/ip/')
     try:
         data = urllib2.urlopen('http://checkip.dyndns.com/').read()
         matches = re.search('<body>Current IP Address: (.*?)</body>', data)
         if matches:
             return matches.group(1)
     except:
-        print 'WARN: failed to retrieve IPv4 from http://checkip.dyndns.com/'
+        logger.warn('failed to retrieve IPv4 from http://checkip.dyndns.com/')
     return None
 
 def get_public_ipv6():
+    logger = Logger.get()
+
     try:
         data = urllib2.urlopen("http://icanhazipv6.com").read()
         matches = re.search('<p class="my_address">(.*?)</p>', data)
         if matches:
             return matches.group(1)
     except:
-        print 'WARN: failed to retrieve IPv4 from http://icanhazipv6.com'
+        logger.warn('failed to retrieve IPv4 from http://icanhazipv6.com')
     return None
 
 def get_public_ipv4_orange():
+    logger = Logger.get()
+
     try:
         data = urllib2.urlopen("http://livebox/").read()
         
@@ -168,8 +239,81 @@ def get_public_ipv4_orange():
             return matches.group(1)
     except: pass
 
-    print 'WARN: failed to retrieve IPv4 from http://livebox/'
+    logger.warn('failed to retrieve IPv4 from http://livebox/')
     return get_public_ipv4()
+
+#
+# Caching
+#
+
+class GandiAPICache:
+    def __init__ ( self, filepath, ttl ):
+        self._filepath = filepath
+        self._cache = None
+        self._ttl = ttl
+        self._logger = Logger.get()
+
+    def read ( self ):
+        logger = self._logger
+
+        ttl = self._ttl
+
+        if self._filepath is False:
+            return self._cache
+
+        if self._cache is None and os.path.isfile(self._filepath):
+            if os.path.getmtime(self._filepath) + ttl < time.time():
+                logger.info('flushing cache, TTL reached')
+                self._cache = {}
+            else:
+                f = open(self._filepath, 'r')
+                
+                try:
+                    self._cache = json.load(f)
+                except: pass
+
+        return self._cache
+
+    def is_empty ( self ):
+        return self.read() is None
+
+    def write ( self, cache ):
+        if self._filepath is not False:
+            f = open(self._filepath, 'w+')
+            json.dump(cache, f, skipkeys=True, cls=JsonObjectEncoder)
+
+        self._cache = cache
+
+    def flush (self ):
+        self.write({})
+
+    def has ( self, key ):
+        if self.is_empty():
+            return False
+
+        return key in self.read()
+
+    def get ( self, key ):
+        if not self.has(key):
+            return None
+
+        return self.read()[key]
+
+    def set ( self, key, value ):
+        if self.is_empty():
+            cache = {}
+        else:
+            cache = self.read()
+
+        cache[key] = value
+        self.write(cache)
+
+class JsonObjectEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (list, dict, str, unicode, int, float, bool, type(None))):
+            return json.JSONEncoder.default(self, obj)
+        else:
+            return str(obj)
 
 #
 # Main
@@ -183,12 +327,13 @@ if __name__ == '__main__':
     rtypes = []
     quiet = False
     test = False
+    logger = Logger(quiet)
 
     # Process command line
     optp = OptionParser()
     optp.add_option('-a', '--api', help='Specify API key')
     optp.add_option('-d', '--domain', help='Specify domain')
-    optp.add_option('-r', '--record', help='Specify record data')
+    optp.add_option('-r', '--record', help='Specify record name')
     optp.add_option('-t', '--ttl', help='Specify record TTL. Defaults to 300s (5min)',
             type='int', default=300)
     optp.add_option('-4', '--ipv4', help='Enable IPv4',
@@ -200,13 +345,15 @@ if __name__ == '__main__':
             action='store_true')
     optp.add_option('--extip4', help='Force external IPv4. This can be used to update a record with an IP different than the IP of the server/workstation from which the script is executed')
     optp.add_option('--extip6', help='Force external IPv6. This can be used to update a record with an IP different than the IP of the server/workstation from which the script is executed')
-    optp.add_option('-q', '--quiet',    help='No output except to stderr on error', action='store_true')
+    optp.add_option('-q', '--quiet', help='No output except to stderr on error', action='store_true')
+    optp.add_option('-c', '--cache', help='Enable IP caching', action='store_true')
+    optp.add_option('--cache-file', help='Set the file cache path. Defaults to gandi-dyndns-cache_DOMAIN.json', dest='cacheFile')
+    optp.add_option('--cache-ttl', help='Set the cache timeout, in seconds. Defaults to 3600s (1h)', dest='cacheTtl', type='int', default=3600)
     (opts, args) = optp.parse_args()
 
     # Validate Options
     if not opts.api or not opts.domain or not opts.record:
-        print 'ERROR: you must specify -a -d and -r'
-        sys.exit(1)
+        logger.error('you must specify -a -d and -r')
 
     # Process
     if opts.ipv4: rtypes.append('A')
@@ -222,24 +369,33 @@ if __name__ == '__main__':
     if opts.quiet: quiet = True
 
     # Setup api
-    api = GandiAPI(apikey, domain)
+    cacheFile = False
+    cacheTtl = opts.cacheTtl
+    if opts.cache: # Cache enabled
+        if opts.cacheFile:
+            cacheFile = opts.cacheFile
+        else:
+            cacheFile = 'gandi-dyndns_'+domain+'.json'
+
+    cache = GandiAPICache(cacheFile, cacheTtl)
+
+    api = GandiAPI(apikey, domain, cache)
 
     # Default
     if not rtypes:
         rtypes = ['A']
 
     # Test mode
-    if opts.test:
-        print 'INFO : running in test mode, will not update records'
+    if test:
+        logger.info('running in test mode, will not update records')
 
     # Process records
     addresses = {}
     for rtype in rtypes:
         if api.zone_record_list(record, rtype) == False:
-            print >> sys.stderr, (rtype + " Record " + record + " does not exist, please create")
-            sys.exit(1)
+            logger.error(rtype + " Record " + record + " does not exist")
 
-        if rtype == 'A':
+        if rtype == 'A': # IPv4
             if extip4:
                 address = extip4
             else:
@@ -247,16 +403,15 @@ if __name__ == '__main__':
                     address = get_public_ipv4_orange()
                 else:
                     address = get_public_ipv4()
-        elif rtype == 'AAAA':
+        elif rtype == 'AAAA': # IPv6
             if extip6:
                 address = extip6
             else:
                 address = get_public_ipv6()
         if not address:
-            print >> sys.stderr, ("Can't find address for record type '" + rtype + "'")
-            sys.exit(1)
+            logger.error("Can't find address for record type '" + rtype + "'")
         addresses[rtype] = address
-        
+
     # Fetch the active zone id
     zone_id = api.zone_get_id()
     
@@ -265,7 +420,7 @@ if __name__ == '__main__':
         ip_changed = api.zone_record_check(record, rtype, addresses[rtype])
         if not ip_changed:
             if not quiet:
-                print ("INFO: The IP for '" + record + "' did not change")
+                logger.info("the IP for '" + record + "' did not change")
             sys.exit(0)
 
     # Create a new zone version for zone id
@@ -275,25 +430,19 @@ if __name__ == '__main__':
         zver = api.zone_version_new()
 
     if not quiet:
-        print 'INFO : created a new zone file version %d' % zver
+        logger.info('created a new zone file version '+str(zver))
 
     for rtype in rtypes:
         # Update the record for the zone id and zone version
         if not test:
             api.zone_record_update(zver, record, rtype, addresses[rtype], ttl)
         if not quiet:
-            print 'Updating record #'+record+':'
-            print ' '+str(ttl)+' '+rtype+' '+addresses[rtype]
+            print('Updating record #'+record+':')
+            print(' '+str(ttl)+' '+rtype+' '+addresses[rtype])
 
     # Activate the new zone
     if not test and zver:
         api.zone_version_set(zver)
 
     # Done
-    print 'INFO: records updated'
-
-# ###########################################################################
-# Editor
-#
-# vim:sts=2:ts=2:sw=2:et
-# ###########################################################################
+    logger.info('records updated')
