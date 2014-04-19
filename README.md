@@ -7,7 +7,7 @@
 ## Requirements
 
 - Python (>= 2.7)
-- Python xmlrpclib 
+- Python `xmlrpclib`
 
 ## Gandi details
 
@@ -15,7 +15,9 @@ API Key (Apply here: https://www.gandi.net/admin/api_key)
 
 ## Usage
 
-gandi-dyndns --apikey=APIKEY --domain=DOMAIN --record=RECORD
+```
+gandi-dyndns --api=APIKEY --domain=DOMAIN --record=RECORD
+```
 
 Currently very lazy but working mode. 
 Note that there is a gandi bug, as where the program updates the zone and activates it, gandi does not show this through their webinterface.
@@ -25,9 +27,11 @@ See http://gerard.geekandfree.org/blog/2012/03/01/debarrassez-vous-de-dyndns-en-
 
 All communication is done over https.
 
+If you have a Livebox, you can specify `--provider orange` to retrieve your public IP from your box (faster, better than online services).
+
 ## crontab
 
 Update DNS every 5 min:
 ```
-*/5 * * * * gandi-dyndns --apikey=APIKEY --domain=DOMAIN --record=RECORD
+*/5 * * * * cronjob.sh
 ```
