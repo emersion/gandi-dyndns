@@ -24,7 +24,7 @@
 import os, sys, re
 import json
 import time
-import xmlrpclib, urllib2
+import xmlrpclib, httplib, urllib, urllib2
 from optparse import OptionParser
 
 class Logger:
@@ -41,7 +41,8 @@ class Logger:
 
     def warn( self, msg ):
         if not self._quiet:
-            print >> sys.stderr, ('WARN: '+msg)
+            #print >> sys.stderr, ('WARN: '+msg)
+            print( 'INFO: '+msg )
 
     def error( self, msg ):
         print >> sys.stderr, ('ERROR: '+msg)
@@ -224,23 +225,56 @@ def get_public_ipv6():
         if matches:
             return matches.group(1)
     except:
-        logger.warn('failed to retrieve IPv4 from http://icanhazipv6.com')
+        logger.warn('failed to retrieve IPv6 from http://icanhazipv6.com')
     return None
 
-def get_public_ipv4_orange():
+# Livebox v2 Sagem
+def get_public_ipv4_orange_v2():
     logger = Logger.get()
 
     try:
         data = urllib2.urlopen("http://livebox/").read()
-        
-        # Livebox v2 Sagem
+
         matches = re.search('Adresse IP WAN :</td>[\s]+<td class="value">(.*?)</td>', data)
         if matches:
             return matches.group(1)
     except: pass
 
     logger.warn('failed to retrieve IPv4 from http://livebox/')
-    return get_public_ipv4()
+    return None
+
+# Livebox v3 Sagem
+# See http://communaute.orange.fr/t5/ma-connexion/Recup%C3%A9ration-de-l-IP-WAN-d-une-Livebox-Play-noire/td-p/226035
+def get_public_ipv4_orange_v3():
+    logger = Logger.get()
+
+    host = 'livebox'
+    path = '/sysbus/NMC:getWANStatus'
+    reqData = '{"parameters":{}}'
+    headers = { "Content-Type": "application/json" }
+
+    try:
+        h = httplib.HTTPConnection(host)
+        h.request('POST', path, reqData, headers)
+        r = h.getresponse()
+
+        respData = json.loads(r.read())
+
+        return respData['result']['data']['IPAddress']
+        #return respData['result']['data']['IPv6Address'] # For ipv6
+    except: pass
+
+    logger.warn('failed to retrieve IPv4 from http://livebox/')
+    return None
+
+def get_public_ipv4_orange():
+	# First try v3
+	ip = get_public_ipv4_orange_v3()
+
+	if ip is None: # Then v2
+		ip = get_public_ipv4_orange_v2()
+
+	return ip
 
 #
 # Caching
@@ -399,8 +433,16 @@ if __name__ == '__main__':
             if extip4:
                 address = extip4
             else:
-                if provider == 'orange':
-                    address = get_public_ipv4_orange()
+                if provider in ['orange', 'orange_v2', 'orange_v3']:
+                    if provider == 'orange':
+                    	address = get_public_ipv4_orange()
+                    elif provider == 'orange_v2':
+                    	address = get_public_ipv4_orange_v2()
+                    else:
+                    	address = get_public_ipv4_orange_v3()
+
+                    if address is None: # Fallback
+                    	address = get_public_ipv4()
                 else:
                     address = get_public_ipv4()
         elif rtype == 'AAAA': # IPv6
