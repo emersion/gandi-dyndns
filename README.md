@@ -25,9 +25,9 @@ I'll be contacting them to fix this.
 
 See http://gerard.geekandfree.org/blog/2012/03/01/debarrassez-vous-de-dyndns-en-utilisant-lapi-de-gandi/
 
-All communication is done over https.
+All communication outside the local network is done over https.
 
-If you have a Livebox, you can specify `--provider orange` to retrieve your public IP from your box (faster, better than online services).
+If you have a Livebox, you can specify `--provider orange` to retrieve your public IP from your box (faster, better than online services). Also supported: `orange_v2` and `orange_v3` (if using `orange` the updater will try to guess if it's v2 or v3).
 
 You can turn the local cache on by appending `--cache`. This reduces api calls to gandi rpc because your domain data is not retrieved each time.
 
