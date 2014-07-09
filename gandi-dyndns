@@ -374,7 +374,7 @@ if __name__ == '__main__':
             action='store_true')
     optp.add_option('-6', '--ipv6', help='Enable IPv6',
             action='store_true')
-    optp.add_option('-p', '--provider', help='Specify your Internet provider name to retrieve faster your IP adress (supported: orange)')
+    optp.add_option('-p', '--provider', help='Specify your Internet provider name to retrieve faster your IP adress (supported: orange, orange_v2, orange_v3)')
     optp.add_option('--test', help='Run test, do not update anything',
             action='store_true')
     optp.add_option('--extip4', help='Force external IPv4. This can be used to update a record with an IP different than the IP of the server/workstation from which the script is executed')
